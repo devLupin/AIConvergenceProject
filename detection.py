@@ -83,55 +83,53 @@ def silentRemove(file):
         if e.errno != errno.ENOENT:
             raise
 
-def main(db_path):
+def main():
+    db_path = 'crawled images'
     tDetector = TensoflowFaceDector(PATH_TO_CKPT)
-    
-    for i in os.listdir(db_path):
-        path = os.path.join(db_path, i)
-        img = cv2.imread(path, cv2.IMREAD_COLOR)
-        
-        if img is None: 
-            silentRemove(path)
-            continue
-        
-        [h, w] = img.shape[:2]
-            
-        (boxes, scores, classes, num_detections) = tDetector.run(img)
-        
-        box = np.squeeze(boxes)
-        score = np.squeeze(scores)
-        
-        if (score[0] > 0.90):   # if detect face
-            ymin, xmin, ymax, xmax = box[0]
-
-            # pil_image = Image.fromarray(np.uint8(image)).convert('RGB')
-            temp = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(temp)
-
-
-            (left, right, top, bottom) = (xmin * w, xmax * w,
-                                          ymin * h, ymax * h)
-
-            cropped = pil_image.crop((left, top, right, bottom))
-            cropped = cropped.resize((112, 112), Image.ANTIALIAS)
-            # cropped.show()
-            cropped.save(os.path.join('crop_img', i), format='PNG', quality=100)
-            
-        silentRemove(path)
-
-if __name__ == '__main__':
-    
-    
-    db_path = '../crawling/Image'
     
     print(f"[*] Detection and RoI cropping !")
     
     while(True):
         num_imgs = len(os.listdir(db_path))
-        
         if num_imgs < 20:
             continue
+        if num_imgs == 20:
+            print(f"[*] 20 images RoI cropping")
         
-        print(f"[*] {num_imgs} images RoI cropping")
-        main(db_path)
-        print('[*] done !')
+        for i in os.listdir(db_path):
+            path = os.path.join(db_path, i)
+            img = cv2.imread(path, cv2.IMREAD_COLOR)
+
+            if img is None: 
+                silentRemove(path)
+                continue
+            
+            [h, w] = img.shape[:2]
+
+            (boxes, scores, classes, num_detections) = tDetector.run(img)
+
+            box = np.squeeze(boxes)
+            score = np.squeeze(scores)
+
+            if (score[0] > 0.90):   # if detect face
+                ymin, xmin, ymax, xmax = box[0]
+
+                # pil_image = Image.fromarray(np.uint8(image)).convert('RGB')
+                temp = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                pil_image = Image.fromarray(temp)
+
+
+                (left, right, top, bottom) = (xmin * w, xmax * w,
+                                              ymin * h, ymax * h)
+
+                cropped = pil_image.crop((left, top, right, bottom))
+                cropped = cropped.resize((112, 112), Image.ANTIALIAS)
+                # cropped.show()
+                cropped.save(os.path.join('cropped images', i), format='PNG', quality=100)
+
+            silentRemove(path)
+
+
+
+if __name__ == '__main__':
+    main()
