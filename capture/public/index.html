@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Face Acquisition</title>
+
+    <!--Import JQuery-->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+
+    <script defer src="/js/face-api.min.js"></script>
+    <script defer src="/js/script.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            /* justify-content: center;
+            align-items: center; */
+        }
+
+        #camera--sensor,
+        #camera--output {
+            height: 0%;
+            width: 0%;
+        }
+
+        #camera--trigger {
+            width: 180px;
+            color: white;
+            background-color: black;
+            font-size: 16px;
+            border-radius: 30px;
+            border: none;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0, 0.2);
+            position: fixed;
+            bottom: 90px;
+            left: calc(50% - 90px);
+        }
+
+        #store_btn {
+            width: 180px;
+            color: white;
+            background-color: black;
+            font-size: 16px;
+            border-radius: 30px;
+            border: none;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0, 0.2);
+            position: fixed;
+            bottom: 30px;
+            left: calc(50% - 90px);
+        }
+
+        #usage {
+            width: 180px;
+            color: white;
+            background-color: dodgerblue;
+            font-size: 16px;
+            border-radius: 30px;
+            border: none;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0, 0.2);
+            position: fixed;
+            bottom: 150px;
+            left: calc(50% - 90px);
+        }
+
+        .taken {
+            height: 224px !important;
+            width: 224px !important;
+            border: solid 2px rgb(121, 200, 253);
+        }
+
+        canvas {
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="video" width="720" height="560" autoplay muted></video>
+    <canvas id="camera--sensor"></canvas>
+    <img src="//:0" alt="" id="camera--output">
+
+    <button id="camera--trigger">사진촬영</button>
+    <button id="store_btn">저장</button>
+    <button id="usage">설명</button>
+</body>
+
+</html>
