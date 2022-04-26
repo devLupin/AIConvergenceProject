@@ -23,39 +23,50 @@ class WindowClass(QMainWindow, form_class) :
         self.leak_btn.clicked.connect(self.leak_btn_clicked)
         self.report_btn.clicked.connect(self.report_btn_clicked)
         
+        self.capture_btn.clicked.connect(self.capture_btn_clicked)
+        self.capture_btn.setStyleSheet("background-image : url(cap.png);")
+        
         self.temp_file_txt
         self.log_txt.append(f"[*] Management program start")
+        self.log_txt.append(f"[*] Continue to Image crawling")
+        self.log_txt.append(f"[*] Continue to RoI cropping")
+        
+        crawling_process.start(); 
+        detection_process.start();
+        
         
     def file_exp_btn_clicked(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', './')
         if fname[0]:
             try:
                 Image.open(fname[0])
-                self.temp_file_txt.setPlainText('시작 버튼을 클릭해주세요 !')
+                self.temp_file_txt.setPlainText(fname[0])
             except IOError:
                 QMessageBox.about(self, 'Error', '유효하지 않은 이미지 입니다.')
-            
+    
+    
+    def capture_btn_clicked(self):
+        # 인터넷 브라우저 만들기
+        pass
+    
     
     def run_btn_clicked(self):
         if self.temp_file_txt.toPlainText() == '사진 업로드 필요 !!':
             QMessageBox.about(self, 'Error', '먼저 사진을 업로드 하셔야 합니다.')
             return
         
-        # crawling_process.start(); crawling_process.join()
-        # detection_process.start(); detection_process.join()
+        self.temp_file_txt.setPlainText('사진 업로드 필요 !!')
         
-        self.temp_file_txt.setPlainText('')
-        
-        self.log_txt.append(f"[*] Continue to Image crawling")
-        self.log_txt.append(f"[*] Continue to Detection")
-        self.log_txt.append(f"[*] Continue to RoI cropping")
-        self.log_txt.append(f"[*] Continue to Recognition")
+        self.log_txt.append(f"[*] Start to Recognition")
+    
     
     def leak_btn_clicked(self):
         pass
     
+    
     def report_btn_clicked(self):
         pass
+    
     
 
 
