@@ -8,8 +8,6 @@ from os.path import getsize
 import csv
  
 def image_download(title, link, log_csv):
- 
-    # 헤더 설정 (필요한 대부분의 정보 제공 -> Bot Block 회피)
     headers = {
     "Connection" : "keep-alive",
     "Cache-Control" : "max-age=0",
@@ -30,17 +28,19 @@ def image_download(title, link, log_csv):
     html = res.text
     soup = BeautifulSoup(html, 'html.parser')
  
-    # 아래 이미지 다운로드 받는 곳에서 시작
     image_download_contents = soup.select("div.appending_file_box ul li")
     for li in image_download_contents:
         img_tag = li.find('a', href=True)
         img_url = img_tag['href']
  
         file_ext = img_url.split('.')[-1]
-        #저장될 파일명
         savename = img_url.split("no=")[2]
         headers['Referer'] = link
-        response = requests.get(img_url, headers=headers)
+        
+        try:
+            response = requests.get(img_url, headers=headers)
+        except requests.exceptions.ChunkedEncodingError:
+            continue
         
         path = f"crawled images/{savename}"
         file_size = len(response.content)
@@ -81,7 +81,10 @@ def main():
             wr = csv.writer(f)
             wr.writerow(['title', 'link', 'file name'])
             
-    BASE_URL = "https://gall.dcinside.com/board/lists/?id=w_entertainer"
+    BASE_URL = "https://gall.dcinside.com/board/lists/?id="
+    # 여자 연예인, 남자 연예인, 히트, 베스트, 인방, 스트리머
+    ID_LIST = ["w_entertainer", "m_entertainer_new1", "hit", "dcbest", "ib_new2", "stream_new1&page=1"]
+    NUM_NOTICE = [5, 4, 5, 4, 4, 4]
     
     headers = {
     "Connection" : "keep-alive",
@@ -100,26 +103,32 @@ def main():
               }
  
     print(f"[*] Image crawling start")
- 
+    
     while(True):
-        res = requests.get(BASE_URL, headers=headers)
-        
-        if res.status_code == 200:
-            html = res.text
-            soup = BeautifulSoup(html, 'html.parser')
-            #print(soup)
-            doc = soup.select("td.gall_tit > a:nth-child(1)")
-            for i in range(4,len(doc)): #공지사항 거르고 시작 (인덱스 뒤부터)
-                link = "https://gall.dcinside.com" + doc[i].get("href") #글 링크
-                title = doc[i].text.strip() # 제목
-                image_insert = image_check(doc[i]) #이미지 포함여부
+        for i in range(len(ID_LIST)):
+            cur_board = BASE_URL + ID_LIST[i]
+            cur_num_notice = NUM_NOTICE[i]
+            
+            res = requests.get(cur_board, headers=headers)
+            
+            if res.status_code == 200:
+                html = res.text
+                soup = BeautifulSoup(html, 'html.parser')
 
-                if(image_insert == True): #이미지 포함시
-                    image_download(title, link, log_csv) #이미지 다운로드하기
-                break #바로 break해서 첫글만 가져옴
-        time.sleep(2)
-        
+                doc = soup.select("td.gall_tit > a:nth-child(1)")
+                for i in range(cur_num_notice, len(doc)):   # remove notice
+                    link = "https://gall.dcinside.com" + doc[i].get("href")
+                    title = doc[i].text.strip()
+                    image_insert = image_check(doc[i])
 
+                    print(title)
+
+                    if(image_insert == True):   # if include images
+                        image_download(title, link, log_csv)
+                    
+                    break
+                
+                time.sleep(5)
 
 if __name__ == '__main__':
     main()
