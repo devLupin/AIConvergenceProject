@@ -1,135 +1,113 @@
-from __future__ import annotations
-import os, errno
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import numpy as np
-
-import tensorflow as tf
-from utils import label_map_util
-import os
+import dlib
 import cv2
-
+import os, errno
 from PIL import Image
 
-from silence_tensorflow import silence_tensorflow
-silence_tensorflow()
+from facePoints import facePoints
 
-# Path to frozen detection graph. This is the actual model that is used for the object detection.
-PATH_TO_CKPT = './model/frozen_inference_graph_face.pb'
-# List of the strings that is used to add correct label for each box.
-PATH_TO_LABELS = './protos/face_label_map.pbtxt'
-NUM_CLASSES = 2
+import numpy as np
+import skimage
+from scipy.spatial import ConvexHull
 
-label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
-category_index = label_map_util.create_category_index(categories)
+face_detector = dlib.get_frontal_face_detector()
+landmark_detector = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
 
-class TensoflowFaceDector(object):
-    def __init__(self, PATH_TO_CKPT):
-        """Tensorflow detector
-        """
+INF = 0x3f3f3f
 
-        self.detection_graph = tf.Graph()
-        with self.detection_graph.as_default():
-            od_graph_def = tf.compat.v1.GraphDef()
-            with tf.io.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
-                serialized_graph = fid.read()
-                od_graph_def.ParseFromString(serialized_graph)
-                tf.import_graph_def(od_graph_def, name='')
-
-        with self.detection_graph.as_default():
-            config = tf.compat.v1.ConfigProto()
-            config.gpu_options.allow_growth = True
-            self.sess = tf.compat.v1.Session(
-                graph=self.detection_graph, config=config)
-            self.windowNotSet = True
-
-    def run(self, image):
-        """image: bgr image
-        return (boxes, scores, classes, num_detections)
-        """
-
-        image_np = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        # the array based representation of the image will be used later in order to prepare the
-        # result image with boxes and labels on it.
-        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-        image_np_expanded = np.expand_dims(image_np, axis=0)
-        image_tensor = self.detection_graph.get_tensor_by_name(
-            'image_tensor:0')
-        # Each box represents a part of the image where a particular object was detected.
-        boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
-        # Each score represent how level of confidence for each of the objects.
-        # Score is shown on the result image, together with the class label.
-        scores = self.detection_graph.get_tensor_by_name('detection_scores:0')
-        classes = self.detection_graph.get_tensor_by_name(
-            'detection_classes:0')
-        num_detections = self.detection_graph.get_tensor_by_name(
-            'num_detections:0')
-        # Actual detection.
-        # start_time = time.time()
-        (boxes, scores, classes, num_detections) = self.sess.run(
-            [boxes, scores, classes, num_detections],
-            feed_dict={image_tensor: image_np_expanded})
-        # elapsed_time = time.time() - start_time
-        # print('inference time cost: {}'.format(elapsed_time))
-
-        return (boxes, scores, classes, num_detections)
-
-
-def silentRemove(file):
+def remove_image(file):
     try:
         os.remove(file)
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise
 
-def main():
-    db_path = 'crawled images'
-    tDetector = TensoflowFaceDector(PATH_TO_CKPT)
-    
-    print(f"[*] Detection and RoI cropping !")
-    
-    while(True):
-        num_imgs = len(os.listdir(db_path))
-        if num_imgs < 20:
-            continue
-        if num_imgs == 20:
-            print(f"[*] 20 images RoI cropping")
+def get_landmark(img):
+    imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    allFaces = face_detector(imgRGB, 0)  # detect all faces
+
+    if len(allFaces) != 1:
+        return None
+
+    face_rectangle = dlib.rectangle(int(allFaces[0].left()),int(allFaces[0].top()),
+                                    int(allFaces[0].right()),int(allFaces[0].bottom()))
+
+    landmark = landmark_detector(imgRGB, face_rectangle)
+    if len(landmark.parts()) != 68:
+            return None
         
-        for i in os.listdir(db_path):
-            path = os.path.join(db_path, i)
-            img = cv2.imread(path, cv2.IMREAD_COLOR)
+    facePoints(img, landmark)
+    
+    return landmark
 
-            if img is None: 
-                silentRemove(path)
-                continue
-            
-            [h, w] = img.shape[:2]
+def get_RoI(landmark=None, s=None, e=None):
+    x, y, w, h = INF, INF, -INF, -INF
 
-            (boxes, scores, classes, num_detections) = tDetector.run(img)
+    start = s - 1
+    end = e
 
-            box = np.squeeze(boxes)
-            score = np.squeeze(scores)
+    for i in range(start, end):
+        cur_x = landmark.part(i).x
+        cur_y = landmark.part(i).y
 
-            if (score[0] > 0.90):   # if detect face
-                ymin, xmin, ymax, xmax = box[0]
+        if x > cur_x:
+            x = cur_x
+        if y > cur_y:
+            y = cur_y
+        if w < cur_x:
+            w = cur_x
+        if h < cur_y:
+            h = cur_y
 
-                # pil_image = Image.fromarray(np.uint8(image)).convert('RGB')
-                temp = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                pil_image = Image.fromarray(temp)
+    return x, y, w, h
+
+def cropping(img, RoI, save_path):
+    temp = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_image = Image.fromarray(temp)
+
+    cropped = pil_image.crop(RoI)
+    cropped = cropped.resize((112, 112), Image.ANTIALIAS)
+    cropped.save(save_path + '.PNG', format='PNG', quality=100)
+
+def make_dir(d):
+    path = os.path.join(d)
+    os.makedirs(path, exist_ok=True)
 
 
-                (left, right, top, bottom) = (xmin * w, xmax * w,
-                                              ymin * h, ymax * h)
+def main():
+    _path = ''
+    temp_img_path = _path + 'raw.png'
+    
+    cur_img = cv2.imread(temp_img_path)
+    if cur_img is None:
+        return
+    
+    landmark = get_landmark(cur_img)
+    if landmark is None:
+        return
+    landmarks = np.array([(p.x, p.y) for p in landmark.parts()])
+    
+    vertices = ConvexHull(landmarks).vertices
+    Y, X = skimage.draw.polygon(landmarks[vertices, 1], landmarks[vertices, 0])
+    
+    origin = cv2.imread(temp_img_path)
+    origin = cv2.cvtColor(origin, cv2.COLOR_BGR2RGB)
+    
+    cropped_img = np.zeros(cur_img.shape, dtype=np.uint8)
+    try:
+        cropped_img[Y, X] = origin[Y, X]
+    except IndexError:
+        return
+    
+    pil_image = Image.fromarray(cropped_img)
+    
+    roi = get_RoI(landmark, 1, 68)
+    
+    cropped_roi = pil_image.crop(roi)
+    cropped_roi = cropped_roi.resize((112, 112), Image.ANTIALIAS)
+    
+    cropped_roi.save(os.path.join(_path, 'temp.png'), format='PNG', quality=100)
 
-                cropped = pil_image.crop((left, top, right, bottom))
-                cropped = cropped.resize((112, 112), Image.ANTIALIAS)
-                # cropped.show()
-                cropped.save(os.path.join('cropped images', i), format='PNG', quality=100)
-
-            silentRemove(path)
-
-
-
+    
 if __name__ == '__main__':
     main()
